@@ -1,13 +1,70 @@
 /*
 Autor: [João Ricardo de Almeida Lustosa]
-Esse código simula um jogo de caça-palavras, onde faz uso da tecnica de backtracking e força bruta para encontrar as palavras
+Esse código simula um jogo de caça-palavras, onde faz uso da tecnica de backtracking e força bruta para encontrar as palavras, a partir de uma matriz de caracteres e uma lista de palavras.
 */
 #include <iostream>
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <cctype>
 
 using namespace std;
+
+class TrieNo
+{
+public:
+    TrieNo *filhos[26];
+    bool isLeaf;
+
+    TrieNo()
+    {
+        isLeaf = false; // Inicializa o nó como não sendo uma folha
+        for (int i = 0; i < 26; i++)
+            filhos[i] = nullptr; // Inicializa todos os filhos como nulos
+    }
+};
+
+/* insere():
+Função para inserir uma palavra na trie
+Parâmetros:
+- raiz: ponteiro para o nó raiz da trie
+- chave: a palavra a ser inserida
+Retorna: verdadeiro se a palavra foi inserida com sucesso, falso caso contrário
+*/
+void insere(TrieNo *raiz, const string &chave)
+{
+    TrieNo *atual = raiz;
+
+    for (char c : chave)
+    {
+        char lowerC = tolower(c); // Converte o caractere para minúsculo
+        if (atual->filhos[lowerC - 'a'] == nullptr)
+        {
+            TrieNo *novoNo = new TrieNo();
+
+            atual->filhos[lowerC - 'a'] = novoNo; // Cria um novo nó se não existir
+        }
+
+        atual = atual->filhos[lowerC - 'a']; // Move para o próximo nó
+    }
+
+    atual->isLeaf = true; // Marca o nó como folha (palavra completa)
+}
+
+/* liberaTrie():
+Função para liberar a memória alocada para a trie
+Parâmetros:
+- no: ponteiro para o nó atual da trie
+Retorna: void
+*/
+void liberaTrie(TrieNo *no)
+{
+    if (!no)
+        return;
+    for (int i = 0; i < 26; i++)
+        liberaTrie(no->filhos[i]);
+    delete no;
+}
 
 /* lerMatriz():
 Função para ler uma matriz de caracteres
@@ -15,99 +72,114 @@ Paramatros:
 - linhas: numero de linhas da matriz
 - matriz: referência para a matriz onde os caracteres serão armazenados
 */
-void lerMatriz(int linhas, vector<vector<char>> &matriz)
+void lerMatriz(int linhas, int colunas, vector<vector<char>> &matriz)
 {
     for (int i = 0; i < linhas; i++)
     {
         string linha;
         cin >> linha;
-        vector<char> row(linha.begin(), linha.end());
+
+        if ((int)linha.size() != colunas)
+        {
+            cerr << "Erro: linha " << i << " tem tamanho diferente de " << colunas << endl;
+            exit(1);
+        }
+
+        vector<char> row;
+        for (char c : linha)
+            row.push_back(tolower(c)); // força minúsculo
         matriz.push_back(row);
     }
 }
 
-/* backtracking():
-Função recursiva para encontrar uma palavra em uma matriz de caracteres, dada uma posição inicial e uma direção
+/*buscaTrie():
+Função recursiva para buscar palavras na trie a partir de uma posição específica na matriz
 Parâmetros:
-- grid: a matriz de caracteres onde a palavra será buscada
-- palavra: a palavra a ser encontrada
-- x, y: coordenadas atuais na matriz
-- index: índice atual na palavra que está sendo buscada
-- dX, dY: deslocamento na direção atual (horizontal, vertical ou diagonal)
-Retorna: verdadeiro se a palavra for encontrada, falso caso contrário
+- raiz: ponteiro para o nó atual da trie
+- grid: referência para a matriz de caracteres
+- dirX, dirY: direção do movimento na matriz (pode ser -1, 0 ou 1)
+- x, y: posição atual na matriz
+- palavraAtual: referência para a string que armazena a palavra atual sendo formada
+- palavrasEncontradas: referência para o vetor que armazena as palavras encontradas
+Retorna: void
 */
-bool backtracking(vector<vector<char>> &grid, string &palavra, int x, int y, int index, int dX, int dY)
+void buscaTrie(TrieNo *raiz, vector<vector<char>> &grid, int dirX, int dirY, int x, int y,
+               string &palavraAtual, vector<string> &palavrasEncontradas)
 {
-    // Condição de parada: se o indice for igual ao tamanho da palavra, significa que encontramos a palavra
-    if (static_cast<size_t>(index) == palavra.size())
-        return true;
+    // Se o nó atual é uma folha, adiciona a palavra atual à lista de palavras encontradas
+    if (raiz->isLeaf)
+    {
+        if (find(palavrasEncontradas.begin(), palavrasEncontradas.end(), palavraAtual) == palavrasEncontradas.end())
+        {
+            palavrasEncontradas.push_back(palavraAtual);
+        }
+    }
 
-    /* Verificação dos limites da matriz
-    Se a posição (x, y) estiver fora dos limites da matriz, retorna falso
-    Se a posição (x, y) já foi visitada, retorna falso
-    Se o caractere na posição (x, y) do grid não estiver na palavra, retorna falso
-    */
+    // Calcula a nova posição (novoX, novoY) com base na direção (dirX, dirY)
+    int novoX = x + dirX;
+    int novoY = y + dirY;
+
+    // Define os limites da matriz
     int linha = grid.size();
     int coluna = grid[0].size();
-    if (x < 0 || x >= linha || y < 0 || y >= coluna || grid[x][y] != palavra[index])
-        return false;
 
-    // Calcula a nova posição (novoX, novoY) com base na direção (dX, dY)
-    int novoX = x + dX;
-    int novoY = y + dY;
-
-    // Chamada recursiva para verificar a próxima posição
-    return backtracking(grid, palavra, novoX, novoY, index + 1, dX, dY);
+    // Verifica se a nova posição está dentro dos limites da matriz
+    if (novoX >= 0 && novoX < linha && novoY >= 0 && novoY < coluna)
+    {
+        char proximoChar = grid[novoX][novoY];
+        int idx = proximoChar - 'a';
+        if (idx < 0 || idx >= 26)
+            return;
+        TrieNo *proximoNo = raiz->filhos[proximoChar - 'a'];
+        if (proximoNo != nullptr)
+        {
+            palavraAtual.push_back(proximoChar);
+            buscaTrie(proximoNo, grid, dirX, dirY, novoX, novoY, palavraAtual, palavrasEncontradas);
+            palavraAtual.pop_back();
+        }
+    }
 }
 
-/* encontraPalavra():
-Função principal para encontrar uma palavra em uma matriz de caracteres
+/* cacaPalavra():
+Função para encontrar todas as palavras na matriz usando a trie
 Parâmetros:
-- grid: a matriz de caracteres onde a palavra será buscada
-- palavra: a palavra a ser encontrada
-Retorna: verdadeiro se a palavra for encontrada, falso caso contrário
+- grid: referência para a matriz de caracteres
+- raiz: ponteiro para o nó raiz da trie
+- palavrasEncontradas: referência para o vetor que armazena as palavras encontradas
+Retorna: void
 */
-bool encontraPalavra(vector<vector<char>> &grid, string &palavra)
+void cacaPalavra(vector<vector<char>> &grid, TrieNo *raiz, vector<string> &palavrasEncontradas)
 {
-    // Caso palavra vazia, retorna falso
-    if (palavra.empty())
-        return false;
-
-    // Verifica se a matriz está vazia ou se a primeira linha está vazia
+    // Verifica se a matriz está vazia
     if (grid.empty() || grid[0].empty())
-        return false;
+        return;
 
-    // Calcula o número de linhas e colunas da matriz
+    // Define os limites da matriz
     int linhas = grid.size();
     int colunas = grid[0].size();
 
-    // Explora as 8 direções possíveis (horizontal, vertical e diagonal)
+    // Define os offsets para as 8 direções (horizontal, vertical e diagonal)
     int linhaOffset[] = {-1, -1, -1, 0, 0, 1, 1, 1};
     int colunaOffset[] = {-1, 0, 1, -1, 1, -1, 0, 1};
 
-    // Procura a primeira letra da palavra no grid
     for (int i = 0; i < linhas; i++)
     {
         for (int j = 0; j < colunas; j++)
         {
-            if (grid[i][j] == palavra[0])
+            char charAtual = grid[i][j];
+            int index = charAtual - 'a';
+
+            if (raiz->filhos[index] != nullptr)
             {
                 for (int k = 0; k < 8; k++)
                 {
-                    // Explora cada direção, para cada direção, calcula o deslocamento
-                    int dX = linhaOffset[k];
-                    int dY = colunaOffset[k];
-
-                    // Chmada recursiva para verificar se a palavra pode ser encontrada a partir da posição (i, j), na direção (dX, dY)
-                    if (backtracking(grid, palavra, i, j, 0, dX, dY))
-                    {
-                        return true; // Se encontrou a palavra, retorna verdadeiro
-                    }
+                    string palavraAtual = "";
+                    palavraAtual.push_back(charAtual);
+                    buscaTrie(raiz->filhos[index], grid, linhaOffset[k], colunaOffset[k], i, j, palavraAtual, palavrasEncontradas);
                 }
             }
         }
     }
-    return false; // Se não encontrou a palavra, retorna falso
 }
 
 int main()
@@ -123,26 +195,24 @@ int main()
     vector<vector<char>> grid;
 
     // Lê a matriz de caracteres
-    lerMatriz(linhas, grid);
+    lerMatriz(linhas, colunas, grid);
 
     // Leitura do número de palavras a serem encontradas
     int numPalavras;
     cin >> numPalavras;
 
-    // Processa cada palavra
+    TrieNo *trieRaiz = new TrieNo();
     vector<string> palavrasEncontradas;
+
+    // Insere todas as palavras na trie
     for (int i = 0; i < numPalavras; i++)
     {
         string palavra;
         cin >> palavra;
-        // Verifica se a palavra pode ser encontrada na matriz
-        // Se a palavra for encontrada e ainda não estiver na lista de palavras encontradas, adiciona à lista
-        if (encontraPalavra(grid, palavra) &&
-            find(palavrasEncontradas.begin(), palavrasEncontradas.end(), palavra) == palavrasEncontradas.end())
-        {
-            palavrasEncontradas.push_back(palavra);
-        }
+        insere(trieRaiz, palavra);
     }
+
+    cacaPalavra(grid, trieRaiz, palavrasEncontradas);
 
     // Ordena as palavras encontradas em ordem alfabética
     sort(palavrasEncontradas.begin(), palavrasEncontradas.end());
@@ -150,11 +220,13 @@ int main()
     if (!palavrasEncontradas.empty())
     {
         cout << palavrasEncontradas.size() << endl;
-        for (const string &p : palavrasEncontradas)
+        for (string &p : palavrasEncontradas)
         {
+            transform(p.begin(), p.end(), p.begin(), ::toupper);
             cout << p << endl;
         }
     }
 
+    liberaTrie(trieRaiz);
     return 0;
 }

@@ -1,5 +1,5 @@
 all:
-	g++ T01.cpp -o T01 -Wall
+	g++ T01.cpp -o T01 -Wall 
 
 run:
 	./T01
